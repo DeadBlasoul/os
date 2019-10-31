@@ -1,0 +1,8 @@
+.vs*
+
+# intermediate folders
+out
+build
+
+# output folders
+bin
