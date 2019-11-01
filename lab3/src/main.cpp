@@ -117,10 +117,12 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
 
     typedef size_t index;
     typedef size_t from_index;
+
     enum class task_type {
         STOP,
         CONTINUE,
     };
+
     enum class report_type {
         REPORT,
         SEARCH_IS_DONE
