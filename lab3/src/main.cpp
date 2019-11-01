@@ -29,13 +29,9 @@ static DWORD thread_launcher(LPVOID data) {
     return EXIT_SUCCESS;
 }
 
-/*
-    cpus_count
-
-    Returns cpus count 
-
-    If `required` is 0 function returns number of available cpus
-*/
+//! cpus count
+/** Returns cpus count. If `required` is 0 function returns number of available cpus.
+    If `required` is greater than available cpus the maximum will be returned. */
 static size_t cpus_count(size_t required = 0) noexcept {
     size_t possible;
     SYSTEM_INFO sysinfo;
