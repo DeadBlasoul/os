@@ -125,43 +125,46 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
 
     enum class report_type {
         REPORT,
-        SEARCH_IS_DONE
+        SEARCH_COMPLETED
     };
 
     using task   = tuple<task_type, index, from_index>;
     using report = pair<report_type, bool>;
 
-    index constexpr start           = 0;
-    auto constexpr  cycle_found     = true;
-    auto constexpr  cycle_not_found = false;
+    auto constexpr start           = 0;
+    auto constexpr cycle_found     = true;
+    auto constexpr cycle_not_found = false;
 
     //! Synchronization resources
     concurrent_bounded_queue<task>   tasks;
     concurrent_bounded_queue<report> reports;
     vector<bool>                     map(links.size(), false);
     mutex                            map_lock;
-    atomic<bool>                     search_done = false;
     atomic<size_t>                   threads_blocked = 0;
 
     //! Thread routine.
     /** Main procedure that is running in each search thread. */
     auto routine = [&]() -> void {
         task t;
-        while (!search_done) {
-            //! blocked is used to check, how many threads now are blocked
+        bool search_completed = false;
+        while (!search_completed) {
+            //! blocked is used to check how many threads now are blocked
             /** If count of blocked threads is `threads_count - 1` then we are nearly
                 to complete workers block. To avoid it we send report that all threads are done
                 and waiting for a STOP task. */
             size_t blocked = threads_blocked.fetch_and_increment();
             if (blocked + 1 == threads_count) {
-                reports.emplace(report_type::SEARCH_IS_DONE, false);
+                reports.emplace(report_type::SEARCH_COMPLETED, false);
             }
             tasks.pop(t);
             threads_blocked.fetch_and_decrement();
 
+            // Unpack next task
             auto [type, current, from] = t;
+
+            // Check task because that may be STOP message
             if (type == task_type::STOP) {
-                search_done = true;
+                search_completed = true;
                 continue;
             }
 
@@ -179,7 +182,6 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
                 if (been_before == false) {
                     been_before = true;
                 } else {
-                    search_done = true;
                     reports.emplace(report_type::REPORT, cycle_found);
                     continue;
                 }
@@ -238,8 +240,8 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
                 continue;
             }
             [[ fallthrough ]];
-        case report_type::SEARCH_IS_DONE:
-            // Search is done, break loop
+        case report_type::SEARCH_COMPLETED:
+            // Search completed, break loop
             break;
         }
 
