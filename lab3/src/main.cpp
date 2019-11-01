@@ -20,7 +20,7 @@
 #include <tbb/atomic.h>
 
 template<typename callable>
-DWORD thread_launcher(LPVOID data) {
+static DWORD thread_launcher(LPVOID data) {
     static_assert(std::is_invocable_v<callable>, "can not start from not callable");
 
     callable* callback = static_cast<callable*>(data);
