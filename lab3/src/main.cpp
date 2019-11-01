@@ -71,8 +71,8 @@ static void parse(int argc, char* argv[], size_t* cpus_count) {
     *cpus_count = cpus;
 }
 
-static void read_input(std::istream& in, tbb::concurrent_vector<tbb::concurrent_vector<bool>>& links) {
-    using tbb::concurrent_vector;
+static void read_input(std::istream& in, std::vector<std::vector<bool>>& links) {
+    using std::vector;
     using std::runtime_error;
 
     auto constexpr minimum_number_of_vertices = 2;
@@ -90,7 +90,7 @@ static void read_input(std::istream& in, tbb::concurrent_vector<tbb::concurrent_
         throw runtime_error("number of vertices is too high");
     }
 
-    links = concurrent_vector(number_of_vertices, concurrent_vector(number_of_vertices, false));
+    links = vector(number_of_vertices, vector(number_of_vertices, false));
     while (in) {
         size_t u, v;
         in >> u >> v;
@@ -106,14 +106,16 @@ static void read_input(std::istream& in, tbb::concurrent_vector<tbb::concurrent_
     }
 }
 
-static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>& links, size_t cpus_count, bool& result) {
+static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t threads_count) {
     using std::pair;
     using std::tuple;
     using std::vector;
     using tbb::concurrent_bounded_queue;
-    using tbb::concurrent_vector;
     using tbb::mutex;
     using tbb::atomic;
+    using std::cerr;
+    using std::endl;
+    using std::terminate;
 
     typedef size_t index;
     typedef size_t from_index;
@@ -121,26 +123,44 @@ static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>
         STOP,
         CONTINUE,
     };
+    enum class report_type {
+        REPORT,
+        SEARCH_IS_DONE
+    };
 
     using task   = tuple<task_type, index, from_index>;
+    using report = pair<report_type, bool>;
 
     index constexpr start           = 0;
     auto constexpr  cycle_found     = true;
     auto constexpr  cycle_not_found = false;
 
-    concurrent_bounded_queue<task> tasks;
-    concurrent_bounded_queue<bool> reports;
-    concurrent_vector<bool>        map(links.size(), false);
-    mutex                          map_lock;
-    atomic<bool>                   done = false;
+    concurrent_bounded_queue<task>   tasks;
+    concurrent_bounded_queue<report> reports;
+    vector<bool>                     map(links.size(), false);
+    mutex                            map_lock;
+    atomic<bool>                     search_done = false;
+    atomic<size_t>                   threads_blocked = 0;
 
+    //! 
+    /***/
     auto routine = [&]() -> DWORD {
         task t;
-        while (!done) {
+        while (!search_done) {
+            //! blocked is used to check, how many threads now are blocked
+            /** If count of blocked threads is `threads_count - 1` then we are nearly
+                to complete workers block. To avoid it we send report that all threads are done
+                and waiting for a STOP task. */
+            size_t blocked = threads_blocked.fetch_and_increment();
+            if (blocked + 1 == threads_count) {
+                reports.emplace(report_type::SEARCH_IS_DONE, false);
+            }
             tasks.pop(t);
+            threads_blocked.fetch_and_decrement();
+
             auto [type, current, from] = t;
             if (type == task_type::STOP) {
-                done = true;
+                search_done = true;
                 continue;
             }
 
@@ -148,13 +168,18 @@ static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>
             // Scope created for RAII
             {
                 std::lock_guard<decltype(map_lock)> lock(map_lock);
-                bool& been_here = map[current];
 
-                if (been_here == false) {
-                    been_here = true;
+                //! been_here is a reference
+                /** The type of been_here is a special wrapper because we used std::vector<bool>
+                    that has well memory optimization.
+                    But in context of algorithm this variable is boolean that we use to check
+                    where we been before. */
+                auto been_before = map[current];
+                if (been_before == false) {
+                    been_before = true;
                 } else {
-                    done = true;
-                    reports.push(cycle_found);
+                    search_done = true;
+                    reports.emplace(report_type::REPORT, cycle_found);
                     continue;
                 }
             }
@@ -170,17 +195,18 @@ static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>
             }
 
             // Push information about current vertex
-            reports.push(cycle_not_found);
+            reports.emplace(report_type::REPORT, cycle_not_found);
         }
 
         return EXIT_SUCCESS;
     };
 
-    // Initial state
+    //! Initial state
+    /** Tell first thread to start from vertex with index that equals start. */
     tasks.emplace(task_type::CONTINUE, start, start);
 
     // Initialize threads
-    vector<HANDLE> threads(cpus_count, HANDLE{ NULL });
+    vector<HANDLE> threads(threads_count, HANDLE{ NULL });
     for (auto& thread : threads) {
         thread = ::CreateThread(
             NULL,
@@ -190,39 +216,50 @@ static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>
             NULL,
             NULL
         );
+        if (thread == NULL) {
+            // Fatal error, abort
+            cerr << "thread initialization failed, aborting..." << endl;
+            terminate();
+        }
     }
 
-    // Gathering reports
-    bool answer = false; //<-- Holds information about cycles in the graph
-    size_t counter = links.size();
-    while (counter > 0) {
-        bool result;
+    //! Gathering reports
+    bool answer = false;
+    bool reports_done = false;
+    while (!reports_done) {
+        report result;
         reports.pop(result);
-        --counter;
 
-        answer |= result; // Update information about cycles in the graph
-        if (!result && counter > 0) {
-            // Cycle still not found, continue operations
-            continue;
+        switch (result.first) {
+        case report_type::REPORT:
+            // Update information about cycles in the graph
+            answer |= result.second;
+            if (!answer) {
+                // Cycle is still not found, continue operations
+                continue;
+            }
+            [[ fallthrough ]];
+        case report_type::SEARCH_IS_DONE:
+            // Search is done, break loop
+            break;
         }
 
-        // Job done, abort all operations
-        std::this_thread::sleep_for(std::chrono::milliseconds{ 1500 }); //<-- It's a hack
-        for (size_t i = 0; i < cpus_count; i++) {
-            tasks.emplace(task_type::STOP, 0, 0);
-        }
-        break;
+        reports_done = true;
     }
 
-    // Wait for threads complete execution
+    // Abort all threads
+    for (size_t i = 0; i < threads_count; i++) {
+        tasks.emplace(task_type::STOP, 0, 0);
+    }
+
+    // Wait for threads
     ::WaitForMultipleObjects(DWORD(threads.size()), threads.data(), TRUE, INFINITE);
 
-    result = answer;
-    return EXIT_SUCCESS;
+    return answer;
 }
 
 int main(int argc, char* argv[]) try {
-    using tbb::concurrent_vector;
+    using std::vector;
     using std::cin;
     using std::cout;
     using std::cerr;
@@ -234,19 +271,14 @@ int main(int argc, char* argv[]) try {
     cpus = cpus_count(cpus);
 
     // Get input data
-    concurrent_vector<concurrent_vector<bool>> links;
+    vector<vector<bool>> links;
     read_input(cin, links);
 
-    bool result;
-    int err = run_parallel_bfs(links, cpus, result);
-    if (err != EXIT_SUCCESS) {
-        cerr << "run_parallel_bfs returned error: [" << err << "]" << endl;
-    }
-    else {
-        cout << "cycle exists: " << (result ? "true" : "false") << endl;
-    }
+    // Run parallel search of cycles in graph
+    bool result = run_parallel_bfs(links, cpus);
+    cout << "cycle exists: " << (result ? "true" : "false") << endl;
 
-    return err;
+    return EXIT_SUCCESS;
 }
 catch (std::exception& e) {
     using std::cerr;
