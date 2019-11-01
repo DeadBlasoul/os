@@ -24,7 +24,9 @@ static DWORD thread_launcher(LPVOID data) {
     static_assert(std::is_invocable_v<callable>, "can not start from not callable");
 
     callable* callback = static_cast<callable*>(data);
-    return std::invoke(*callback);
+    std::invoke(*callback);
+
+    return EXIT_SUCCESS;
 }
 
 /*
@@ -135,6 +137,7 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
     auto constexpr  cycle_found     = true;
     auto constexpr  cycle_not_found = false;
 
+    //! Synchronization resources
     concurrent_bounded_queue<task>   tasks;
     concurrent_bounded_queue<report> reports;
     vector<bool>                     map(links.size(), false);
@@ -142,9 +145,9 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
     atomic<bool>                     search_done = false;
     atomic<size_t>                   threads_blocked = 0;
 
-    //! 
-    /***/
-    auto routine = [&]() -> DWORD {
+    //! Thread routine.
+    /** Main procedure that is running in each search thread. */
+    auto routine = [&]() -> void {
         task t;
         while (!search_done) {
             //! blocked is used to check, how many threads now are blocked
@@ -172,8 +175,8 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
                 //! been_here is a reference
                 /** The type of been_here is a special wrapper because we used std::vector<bool>
                     that has well memory optimization.
-                    But in context of algorithm this variable is boolean that we use to check
-                    where we been before. */
+                    But in context of algorithm this variable is a boolean that we use to check
+                    where we have been before. */
                 auto been_before = map[current];
                 if (been_before == false) {
                     been_before = true;
@@ -197,8 +200,6 @@ static int run_parallel_bfs(std::vector<std::vector<bool>>& links, size_t thread
             // Push information about current vertex
             reports.emplace(report_type::REPORT, cycle_not_found);
         }
-
-        return EXIT_SUCCESS;
     };
 
     //! Initial state
