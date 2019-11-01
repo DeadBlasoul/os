@@ -128,13 +128,11 @@ static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>
     auto constexpr  cycle_found     = true;
     auto constexpr  cycle_not_found = false;
 
-    concurrent_bounded_queue<task>   tasks;
-    concurrent_bounded_queue<bool>   reports;
-    concurrent_vector<bool>          map(links.size(), false);
-    mutex                            map_lock;
-    atomic<bool>                     done = false;
-
-    std::cout << map[0] << std::endl;
+    concurrent_bounded_queue<task> tasks;
+    concurrent_bounded_queue<bool> reports;
+    concurrent_vector<bool>        map(links.size(), false);
+    mutex                          map_lock;
+    atomic<bool>                   done = false;
 
     auto routine = [&]() -> DWORD {
         task t;
