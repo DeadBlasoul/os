@@ -1,8 +1,46 @@
+# Visual Studio and Visual Studio Code
 .vs*
 
-# intermediate folders
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Output folders
+bin
 out
 build
 
-# output folders
-bin
+# LaTeX intermediate files
+_minted-report
+*.log
+*.aux
