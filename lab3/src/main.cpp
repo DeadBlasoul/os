@@ -15,7 +15,6 @@
 
 /* Threading building blocks: */
 #include <tbb/concurrent_queue.h>
-#include <tbb/concurrent_vector.h>
 #include <tbb/mutex.h>
 #include <tbb/atomic.h>
 
