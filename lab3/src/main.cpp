@@ -7,6 +7,7 @@
 #include <utility>
 #include <tuple>
 #include <mutex>
+#include <thread>
 
 /* WINAPI: */
 #include <Windows.h>
@@ -207,7 +208,8 @@ static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>
             continue;
         }
 
-        // Job, abort all operations
+        // Job done, abort all operations
+        std::this_thread::sleep_for(std::chrono::milliseconds{ 1500 });
         for (size_t i = 0; i < cpus_count; i++) {
             tasks.emplace(task_type::STOP, 0, 0);
         }
