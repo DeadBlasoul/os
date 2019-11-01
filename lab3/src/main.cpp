@@ -207,7 +207,7 @@ static int run_parallel_bfs(tbb::concurrent_vector<tbb::concurrent_vector<bool>>
         }
 
         // Job done, abort all operations
-        std::this_thread::sleep_for(std::chrono::milliseconds{ 1500 });
+        std::this_thread::sleep_for(std::chrono::milliseconds{ 1500 }); //<-- It's a hack
         for (size_t i = 0; i < cpus_count; i++) {
             tasks.emplace(task_type::STOP, 0, 0);
         }
