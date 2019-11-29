@@ -156,7 +156,7 @@ int run_as_parent(const char* program_name)
     }
 
     char command[128];
-    sprintf_s(command, sizeof(command), "wsl echo -n 'What is life? Life is %zu' | wsl cowsay | wsl lolcat", data.answer);
+    sprintf_s(command, sizeof(command), "wsl echo -n 'What is life? The answer is %zu' | wsl cowsay | wsl lolcat", data.answer);
     system(command);
     return EXIT_SUCCESS;
 }
