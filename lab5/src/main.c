@@ -91,7 +91,7 @@ int run() {
             continue;
         }
 
-        if (scanf("%" STR(CMD_NAME_SIZE) "s", cmd_str) != 1) {
+        if (scanf_s("%" STR(CMD_NAME_SIZE) "s", cmd_str) != 1) {
             printf("incorrect input\n");
             skipline();
             continue;
@@ -114,6 +114,7 @@ int run() {
         if (!found) {
             printf("command '%s' not found\n", cmd_str);
         }
+        skipline();
     }
 
     return EXIT_SUCCESS;
