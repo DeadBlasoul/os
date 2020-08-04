@@ -15,22 +15,23 @@
 auto main(int const argc, char const* argv[]) -> int try {
     using namespace utility;
 
-    if (argc != 2) {
+    if (argc != 3) {
         throw std::invalid_argument {"Incorrect number of arguments"};
     }
 
     std::cout
-        << "[#] New node created with the next parameters:" << std::endl
-        << "    address : " << argv[0] << std::endl
-        << "    id      : " << argv[1] << std::endl;
+        << "[#] New node created with the following parameters:" << std::endl
+        << "    path    : " << argv[0] << std::endl
+        << "    address : " << argv[1] << std::endl
+        << "    id      : " << argv[2] << std::endl;
 
 
     //
     //  As we start program via CreateProcess it's doesn't receive argv[0] as path to program which started.
     //  Following it argv[0] will be an address, argv[1] will be an unique id. 
     //
-    auto const* address = argv[0];
-    auto const  id      = std::stoll(argv[1]);
+    auto const* address = argv[1];
+    auto const  id      = std::stoll(argv[2]);
 
     //
     //  Prepare our context and socket

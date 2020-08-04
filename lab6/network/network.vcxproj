@@ -156,7 +156,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\network.cpp" />
+    <ClCompile Include="src\.keep.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\network\graph.hpp" />
+    <ClInclude Include="..\include\network\response.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

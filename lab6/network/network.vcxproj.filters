@@ -7,7 +7,15 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\network.cpp">
+    <ClInclude Include="..\include\network\graph.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\network\response.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\.keep.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

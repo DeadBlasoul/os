@@ -69,13 +69,14 @@ auto tasking::launcher::start() const noexcept(false) -> task {
     auto                task = tasking::task {};
     STARTUPINFOA        info = {sizeof(info)};
     PROCESS_INFORMATION process_info;
+    auto const args = task_info_.path.string() + " " + std::string{ task_info_.args };
 
     //
     // Create new process
     //
     auto const status = CreateProcessA(
         task_info_.path.string().c_str(),
-        const_cast<LPSTR>(task_info_.args.data()),
+        const_cast<LPSTR>(args.data()),
         nullptr,
         nullptr,
         FALSE,
