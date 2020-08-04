@@ -11,6 +11,7 @@
 namespace network {
     using namespace std::string_view_literals;
 
+    /// INLINE class that implements network graph
     class graph {
         struct node {
             tasking::task task;
@@ -27,6 +28,35 @@ namespace network {
             for (auto port = std::uint16_t {5500}; port < 5600; ++port) {
                 port_pool_.insert(port);
             }
+        }
+
+        /// Creates new node
+        auto create(std::int64_t const id, std::int64_t const parent) -> response {
+            verify(id);
+            return x_create_node(id, parent);
+        }
+
+        /// Removes node from the network
+        auto remove(std::int64_t const id) -> response {
+            verify(id);
+            return x_remove(id);
+        }
+
+        /// Executes command on the node remotely
+        auto exec(std::int64_t const id, std::string_view const command) -> response {
+            verify(id);
+            verify_exec(command);
+            return x_exec(id, command);
+        }
+
+        /// Pings node
+        /**
+         * @param id: node unique id
+         * @return: ok if succeed otherwise error
+        */
+        auto ping(std::int64_t const id) -> response {
+            verify(id);
+            return x_ping(id);
         }
 
     private:
@@ -253,37 +283,6 @@ namespace network {
             };
         }
 
-    public:
-        /// Creates new node
-        auto create(std::int64_t const id, std::int64_t const parent) -> response {
-            verify(id);
-            return x_create_node(id, parent);
-        }
-
-        /// Removes node from the network
-        auto remove(std::int64_t const id) -> response {
-            verify(id);
-            return x_remove(id);
-        }
-
-        /// Executes command on the node remotely
-        auto exec(std::int64_t const id, std::string_view const command) -> response {
-            verify(id);
-            verify_exec(command);
-            return x_exec(id, command);
-        }
-
-        /// Pings node
-        /**
-         * @param id: node unique id
-         * @return: ok if succeed otherwise error
-        */
-        auto ping(std::int64_t const id) -> response {
-            verify(id);
-            return x_ping(id);
-        }
-
-    private:
         /// Verifies node id value
         static auto verify(std::int64_t const id) -> void {
             if (id < 0) {
