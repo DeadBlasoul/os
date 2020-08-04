@@ -291,13 +291,11 @@ namespace network {
         }
 
         /// Verifies exec command string
-        static auto verify_exec(std::string_view const command) -> void {
-            if (!std::any_of(
-                exec_commands.begin(),
-                exec_commands.end(),
-                [&](std::string_view const type) -> bool {
-                    return type == command;
-                })) {
+        static auto verify_exec(std::string_view const string) -> void {
+            auto constexpr begin = exec_commands.begin();
+            auto constexpr end   = exec_commands.end();
+
+            if (!std::any_of(begin, end, [&](auto const command) { return command == string; })) {
                 throw std::invalid_argument {"Invalid command string"};
             }
         }
