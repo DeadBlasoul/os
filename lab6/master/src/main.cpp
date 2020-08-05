@@ -73,7 +73,10 @@ auto main() -> int try {
             throw std::invalid_argument {"Already exists"};
 
         case network::response::error_type::ok:
-            std::cout << "Ok: " << response.message << std::endl;
+            if (!response.message.empty())
+                std::cout << "Ok: " << response.message << std::endl;
+            else
+                std::cout << "Ok" << std::endl;
         }
     };
 
@@ -133,8 +136,8 @@ auto main() -> int try {
 
                 auto const id     = unrolled(argv[1]);
                 auto const parent = unrolled(argv[2]);
-
                 auto const rep = net_graph.create(id, parent);
+
                 process_reply(rep);
             }
         })
@@ -148,8 +151,8 @@ auto main() -> int try {
                 check_argv(argv, std::array {"id:i64"sv});
 
                 auto const id = unrolled(argv[1]);
-
                 auto const rep = net_graph.remove(id);
+
                 process_reply(rep);
             }
         })
@@ -164,8 +167,8 @@ auto main() -> int try {
 
                 auto const id      = unrolled(argv[1]);
                 auto const command = argv[2];
-
                 auto const rep = net_graph.exec(id, command);
+
                 process_reply(rep);
             }
         })
@@ -179,8 +182,8 @@ auto main() -> int try {
                 check_argv(argv, std::array {"id:i64"sv});
 
                 auto const id = unrolled(argv[1]);
-
                 auto const rep = net_graph.ping(id);
+
                 process_reply(rep);
             }
         });
