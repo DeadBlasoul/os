@@ -11,12 +11,15 @@
 #include <Windows.h>
 
 #include <utility/commandline.hpp>
+#include <network/response.hpp>
 
-auto main(int const argc, char const* argv[]) -> int try {
+auto main(int const argc, char const* argv[]) -> int try
+{
     using namespace utility;
 
-    if (argc != 3) {
-        throw std::invalid_argument {"Incorrect number of arguments"};
+    if (argc != 3)
+    {
+        throw std::invalid_argument{"Incorrect number of arguments"};
     }
 
     std::cout
@@ -36,62 +39,44 @@ auto main(int const argc, char const* argv[]) -> int try {
     //
     //  Prepare our context and socket
     //
-    auto context = zmq::context_t {1};
-    auto socket  = zmq::socket_t {context, ZMQ_REP};
+    auto context = zmq::context_t{1};
+    auto socket  = zmq::socket_t{context, ZMQ_REP};
     socket.bind(address);
 
-    auto runner =
-        commandline::command_runner {}
-        .assign_or_update({
-            .name = "create",
-            .callback = [&socket](commandline::command_runner::argv_t const& argv) {
-                void(0);
-            },
-        })
-        .assign_or_update({
-            .name = "remove",
-            .callback = [&socket](commandline::command_runner::argv_t const& argv) {
-                void(0);
-            },
-        })
-        .assign_or_update({
-            .name = "exec",
-            .callback = [&socket](commandline::command_runner::argv_t const& argv) {
-                void(0);
-            },
-        })
-        .assign_or_update({
-            .name = "ping",
-            .callback = [&socket](commandline::command_runner::argv_t const& argv) {
-                void(0);
-            },
-        })
-        .assign_or_update({
-            .name = "pid",
-            .callback = [&socket](commandline::command_runner::argv_t const& argv) {
-                void(0);
-            },
-        });
-
-    while (true) {
-        auto message  = zmq::message_t {256};
-        auto recv_res = socket.recv(message, zmq::recv_flags::none);
-        message.rebuild(*recv_res);
+    while (true)
+    {
+        //
+        // Receive request
+        //
+        auto request  = zmq::message_t{256};
+        auto recv_res = socket.recv(request, zmq::recv_flags::none);
+        request.rebuild(*recv_res);
 
         std::cout << std::endl;
-        std::cout << "[^] Request : " << std::string_view {message.data<char>(), message.size()} << std::endl;
+        std::cout << "[^] Request : " << std::string_view{request.data<char>(), request.size()} << std::endl;
 
-        auto const process_id   = GetCurrentProcessId();
-        auto const reply_string = (std::stringstream {} << "OK " << process_id).str();
+        //
+        // Build response
+        //
+        auto const process_id = GetCurrentProcessId();
+        auto const response   = network::response{
+            .code = network::response::error::ok,
+            .message = std::to_string(process_id),
+        };
 
-        auto reply = zmq::message_t {reply_string.size()};
-        std::memcpy(reply.data(), reply_string.data(), reply_string.size());
-        socket.send(reply, zmq::send_flags::none);
-        std::cout << "[v] Reply   : " << reply_string << std::endl;
+        //
+        // Send response
+        //
+        auto serialized_response = zmq::message_t{response.size()};
+        response.serialize_to(serialized_response);
+        socket.send(serialized_response, zmq::send_flags::none);
+
+        std::cout << "[v] Reply   : " << response.message << std::endl;
     }
 }
-catch (std::exception& e) {
+catch (std::exception& e)
+{
     std::cerr << "Error: " << e.what() << std::endl;
-    #undef max
+#undef max
     zmq_sleep(std::numeric_limits<int>::max());
 }

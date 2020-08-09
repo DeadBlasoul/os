@@ -159,8 +159,10 @@
     <ClCompile Include="src\.keep.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\network\graph.hpp" />
+    <ClInclude Include="..\include\network\constants.hpp" />
     <ClInclude Include="..\include\network\response.hpp" />
+    <ClInclude Include="..\include\network\topologies\tree.hpp" />
+    <ClInclude Include="..\include\network\topology.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

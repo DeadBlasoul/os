@@ -7,9 +7,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\commandline.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\unrolled.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -19,6 +16,12 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\utility\unrolled.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\utility\my_ranges.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\utility\string.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

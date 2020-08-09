@@ -155,11 +155,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\commandline.cpp" />
     <ClCompile Include="src\unrolled.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\utility\commandline.hpp" />
+    <ClInclude Include="..\include\utility\my_ranges.hpp" />
+    <ClInclude Include="..\include\utility\string.hpp" />
     <ClInclude Include="..\include\utility\unrolled.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
