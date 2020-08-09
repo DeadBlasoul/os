@@ -74,10 +74,14 @@ auto executable::interface::declare() noexcept(false) -> void
             //
             // Checkout target node for existing
             //
-            if (auto const response = engine_.exec(target, "ping");
+            if (auto response = engine_.exec(target, "ping");
                 response.code == network::response::error::ok)
             {
                 return {.code = network::response::error::exists};
+            }
+            else if(response.code != network::response::error::unknown)
+            {
+                return response;
             }
 
             //
