@@ -19,7 +19,7 @@ namespace executable
         explicit interface(network::topology::tree::engine& engine)
             : engine_{engine}
         {
-            declare_interface();
+            declare();
         }
 
         auto execute(std::string_view const command) noexcept(false) -> network::response
@@ -35,6 +35,6 @@ namespace executable
         }
 
     private:
-        auto declare_interface() noexcept(false) -> void;
+        auto declare() noexcept(false) -> void;
     };
 }

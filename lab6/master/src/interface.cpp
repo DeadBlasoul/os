@@ -68,21 +68,20 @@ auto executable::interface::declare() noexcept(false) -> void
 
             auto const target = std::stoll(std::string{argv[1]});
             auto const parent = std::stoll(std::string{argv[2]});
-
             check_id(target);
             check_parent_id(parent);
 
             //
             // Checkout target node for existing
             //
-            if (auto const response = engine_.exec(target, "ping"); response.code ==
-                network::response::error::ok)
+            if (auto const response = engine_.exec(target, "ping");
+                response.code == network::response::error::ok)
             {
                 return {.code = network::response::error::exists};
             }
 
             //
-            // Create node locally
+            // Create node locally if requested
             //
             if (parent == -1)
             {
@@ -92,8 +91,8 @@ auto executable::interface::declare() noexcept(false) -> void
             //
             // Checkout parent node for availability
             //
-            if (auto response = engine_.exec(parent, "ping"); response.code !=
-                network::response::error::ok)
+            if (auto response = engine_.exec(parent, "ping");
+                response.code != network::response::error::ok)
             {
                 return response;
             }
@@ -109,8 +108,10 @@ auto executable::interface::declare() noexcept(false) -> void
         .callback = [this](argv_t argv) -> network::response
         {
             commandline::argv::check(argv, std::array{"id"sv});
+
             auto const target_id = std::stoll(std::string{argv[1]});
             check_id(target_id);
+
             return engine_.remove(target_id);
         }
     }).assign_or_update({
@@ -121,7 +122,6 @@ auto executable::interface::declare() noexcept(false) -> void
 
             auto const target  = std::stoll(std::string{argv[1]});
             auto const command = argv[2];
-
             check_id(target);
             check_special_command(command);
 
@@ -133,6 +133,7 @@ auto executable::interface::declare() noexcept(false) -> void
         .callback = [this](argv_t argv) -> network::response
         {
             commandline::argv::check(argv, std::array{"id"sv});
+
             auto const target = std::stoll(std::string{argv[1]});
             check_id(target);
 
