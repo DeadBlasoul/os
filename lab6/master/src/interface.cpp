@@ -79,7 +79,7 @@ auto executable::interface::declare() noexcept(false) -> void
             {
                 return {.code = network::response::error::exists};
             }
-            else if(response.code != network::response::error::unknown)
+            else if (response.code != network::response::error::unknown)
             {
                 return response;
             }
@@ -90,15 +90,6 @@ auto executable::interface::declare() noexcept(false) -> void
             if (parent == -1)
             {
                 return engine_.create_node(target);
-            }
-
-            //
-            // Checkout parent node for availability
-            //
-            if (auto response = engine_.exec(parent, "ping");
-                response.code != network::response::error::ok)
-            {
-                return response;
             }
 
             //
