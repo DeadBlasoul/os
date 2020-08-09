@@ -26,7 +26,7 @@ namespace
         }
     }
 
-    auto check_command(std::string_view const command) noexcept(false) -> void
+    auto check_special_command(std::string_view const command) noexcept(false) -> void
     {
         auto static constexpr defined_commands = std::array{
             "start"sv,
@@ -37,9 +37,9 @@ namespace
         auto constexpr begin = defined_commands.begin();
         auto constexpr end   = defined_commands.end();
 
-        if (!std::any_of(begin, end, [&](auto const defined) { return defined == command; }))
+        if (not std::any_of(begin, end, [&](auto const defined) { return defined == command; }))
         {
-            throw std::invalid_argument{"no such command '" + std::string{command} + "'"};
+            throw std::invalid_argument{"no such special command '" + std::string{command} + "'"};
         }
     }
 
@@ -58,7 +58,7 @@ namespace
     }
 }
 
-auto executable::interface::declare_interface() noexcept(false) -> void
+auto executable::interface::declare() noexcept(false) -> void
 {
     runner_.assign_or_update({
         .name = "create",
@@ -123,7 +123,7 @@ auto executable::interface::declare_interface() noexcept(false) -> void
             auto const command = argv[2];
 
             check_id(target);
-            check_command(command);
+            check_special_command(command);
 
             auto const request_message = build_command_with_special("exec", command);
             return engine_.exec(target, request_message);
