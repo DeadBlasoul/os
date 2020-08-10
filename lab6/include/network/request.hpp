@@ -1,30 +1,25 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
+#include <stdexcept>
 
 namespace network
 {
-    enum class error : std::uint8_t
+    struct request
     {
-        ok,
-        bad_request,
-        unknown,
-        unavailable,
-        exists,
-        invalid_path,
-        internal_error,
-    };
+        enum class type : std::uint8_t
+        {
+            envelope,
+            message
+        };
 
-    struct response
-    {
-        error       error;
+        type        type;
         std::string message;
 
         [[nodiscard]]
         auto size() const noexcept -> std::size_t
         {
-            return sizeof(error) + std::size(message);
+            return sizeof(type) + std::size(message);
         }
 
         template <typename Container>
@@ -42,12 +37,12 @@ namespace network
                 "type of value from data method in serialization buffer is not void*");
 
             auto* const data         = buffer.data();
-            auto* const code_byte    = static_cast<network::error*>(data);
+            auto* const code_byte    = static_cast<decltype(type)*>(data);
             auto* const string_space = reinterpret_cast<std::string::value_type*>(
                 static_cast<std::byte*>(data) +
-                sizeof(network::error));
+                sizeof(decltype(type)));
 
-            *code_byte = error;
+            *code_byte = type;
             std::memcpy(string_space, message.data(), message.size());
         }
 
@@ -56,7 +51,7 @@ namespace network
         {
             auto const size = buffer.size();
 
-            if (size < sizeof(error))
+            if (size < sizeof(type))
             {
                 throw std::invalid_argument{"size of data in serialized buffer is too small"};
             }
@@ -66,34 +61,24 @@ namespace network
                 "type of value from data method in serialization buffer is not const void*");
 
             auto const* const data         = buffer.data();
-            auto const* const code_byte    = static_cast<const network::error*>(data);
+            auto const* const code_byte    = static_cast<const decltype(type)*>(data);
             auto const* const string_space = reinterpret_cast<const std::string::value_type*>(
                 static_cast<const std::byte*>(data) +
-                sizeof(network::error));
+                sizeof(type));
 
-            error    = *code_byte;
-            message = std::string{string_space, size - sizeof(error)};
+            type   = *code_byte;
+            message = std::string{string_space, size - sizeof(type)};
         }
 
         [[nodiscard]]
         auto code_to_string() const noexcept -> std::string_view
         {
-            switch (error)
+            switch (type)
             {
-            case error::ok:
-                return "ok";
-            case error::bad_request:
-                return "bad_request";
-            case error::unavailable:
-                return "unavailable";
-            case error::exists:
-                return "exists";
-            case error::internal_error:
-                return "internal_error";
-            case error::invalid_path:
-                return "invalid_path";
-            case error::unknown:
-                return "unknown";
+            case type::message:
+                return "message";
+            case type::envelope:
+                return "envelope";
             }
 
             return "INVALID_CODE";

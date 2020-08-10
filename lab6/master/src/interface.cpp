@@ -3,8 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-#include <network/constants.hpp>
-
+using namespace std::string_literals;
 using namespace std::string_view_literals;
 using namespace utility;
 
@@ -68,6 +67,7 @@ auto executable::interface::declare() noexcept(false) -> void
 
             auto const target = std::stoll(std::string{argv[1]});
             auto const parent = std::stoll(std::string{argv[2]});
+
             check_id(target);
             check_parent_id(parent);
 
@@ -75,28 +75,41 @@ auto executable::interface::declare() noexcept(false) -> void
             // Checkout target node for existing
             //
             if (auto response = engine_.exec(target, "ping");
-                response.code == network::response::error::ok)
+                response.error == network::error::ok)
             {
-                return {.code = network::response::error::exists};
+                return {.error = network::error::exists};
             }
-            else if (response.code != network::response::error::unknown)
+            else if (response.error != network::error::unknown)
             {
                 return response;
             }
 
-            //
-            // Create node locally if requested
-            //
+            auto const        port = pop_port_from_pool();
+            network::response response;
+
             if (parent == -1)
             {
-                return engine_.create_node(target);
+                //
+                // Create node locally
+                //
+                response = engine_.create_node(target, port);
+            }
+            else
+            {
+                //
+                // Create node remotely
+                //
+                auto const request = build_command_with_target("create", target);
+                auto const primary = request + " " + std::to_string(port);
+                response           = engine_.exec(parent, primary);
             }
 
-            //
-            // Create node remotely
-            //
-            auto const request_message = build_command_with_target("create", target);
-            return engine_.exec(parent, request_message);
+            if (response.error != network::error::ok)
+            {
+                port_pool_.insert(port);
+            }
+
+            return response;
         }
     }).assign_or_update({
         .name = "remove",
@@ -105,6 +118,7 @@ auto executable::interface::declare() noexcept(false) -> void
             commandline::argv::check(argv, std::array{"id"sv});
 
             auto const target_id = std::stoll(std::string{argv[1]});
+
             check_id(target_id);
 
             return engine_.remove(target_id);
@@ -117,6 +131,7 @@ auto executable::interface::declare() noexcept(false) -> void
 
             auto const target  = std::stoll(std::string{argv[1]});
             auto const command = argv[2];
+
             check_id(target);
             check_special_command(command);
 
@@ -130,15 +145,16 @@ auto executable::interface::declare() noexcept(false) -> void
             commandline::argv::check(argv, std::array{"id"sv});
 
             auto const target = std::stoll(std::string{argv[1]});
+
             check_id(target);
 
             auto response = engine_.exec(target, "ping");
 
-            if (response.code == network::response::error::unavailable)
+            if (response.error == network::error::unavailable)
             {
                 return
                 {
-                    .code = network::response::error::ok,
+                    .error = network::error::ok,
                     .message = "0",
                 };
             }

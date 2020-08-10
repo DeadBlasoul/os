@@ -160,6 +160,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\network\constants.hpp" />
+    <ClInclude Include="..\include\network\request.hpp" />
     <ClInclude Include="..\include\network\response.hpp" />
     <ClInclude Include="..\include\network\topologies\tree.hpp" />
     <ClInclude Include="..\include\network\topology.hpp" />

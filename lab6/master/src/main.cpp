@@ -20,9 +20,9 @@ auto main() -> int try
 
     auto static process_reply = [](network::response const& response) -> void
     {
-        switch (response.code)
+        switch (response.error)
         {
-        case network::response::error::ok:
+        case network::error::ok:
             if (response.message.empty())
             {
                 std::cout << "Ok" << std::endl;
@@ -33,29 +33,34 @@ auto main() -> int try
             }
             break;
 
-        case network::response::error::bad_request:
-            throw std::runtime_error{"Bad request"};
+        case network::error::bad_request:
+            if (response.message.empty())
+            {
+                throw std::runtime_error{ "Bad request" };
+            }
+            throw std::runtime_error{ response.message };
 
-        case network::response::error::exists:
+        case network::error::exists:
             throw std::logic_error{"Already exists"};
 
-        case network::response::error::unknown:
+        case network::error::unknown:
             throw std::invalid_argument{"Node not found"};
 
-        case network::response::error::unavailable:
+        case network::error::unavailable:
             throw std::runtime_error{"Node is unavailable"};
 
-        case network::response::error::invalid_path:
-            throw std::runtime_error{
-                "Some of branches is not operational for this request that makes result ambiguous"
+        case network::error::invalid_path:
+            throw std::runtime_error
+            {
+                "Some of branches is not operational that makes result ambiguous"
             };
 
-        case network::response::error::internal_error:
+        case network::error::internal_error:
             if (response.message.empty())
             {
                 throw std::runtime_error{"Internal error"};
             }
-            throw std::runtime_error{"Internal error: " + std::string{response.message}};
+            throw std::runtime_error{"Internal: " + response.message};
 
         default:
             throw std::runtime_error{"Unknown error"};

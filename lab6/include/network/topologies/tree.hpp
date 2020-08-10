@@ -6,6 +6,7 @@
 #include <zmq.hpp>
 
 #include <tasking/launcher.hpp>
+#include <network/request.hpp>
 #include <network/response.hpp>
 
 namespace network::topology::tree
@@ -21,48 +22,24 @@ namespace network::topology::tree
             std::int64_t  id;
         };
 
-        zmq::context_t&         context_;
-        std::list<node>         root_nodes_;
-        std::set<std::uint16_t> port_pool_;
+        zmq::context_t& context_;
+        std::list<node> root_nodes_;
 
     public:
         explicit engine(zmq::context_t& context)
             : context_{context}
         {
-            for (auto port = std::uint16_t{5500}; port < 5600; ++port)
-            {
-                port_pool_.insert(port);
-            }
         }
 
         auto static constexpr any_node = std::int64_t{-1};
 
-        /// Pops port from the port pool
-        auto pop_port_from_pool() -> std::uint16_t
-        {
-            port_pool_ability_check();
-
-            //
-            // Extract free port
-            //
-            auto const it   = port_pool_.begin();
-            auto const port = *it;
-
-            //
-            // Pop it from pool
-            //
-            port_pool_.erase(it);
-
-            return port;
-        }
 
         /// Creates new node locally
-        auto create_node(std::int64_t const id) -> response
+        auto create_node(std::int64_t const id, std::int16_t const port) -> response
         {
             //
             // Create new node parameters
             //
-            auto const port    = pop_port_from_pool();
             auto const address = "tcp://*:" + std::to_string(port);
             auto const args    = address + " " + std::to_string(id);
 
@@ -89,9 +66,13 @@ namespace network::topology::tree
             try
             {
                 auto response = pid(id);
-                if (response.code != response::error::ok)
+                if (response.error != error::ok)
                 {
-                    throw_internal("cannot initialize new node");
+                    if (response.message.empty())
+                    {
+                        throw std::runtime_error{"cannot create new node"};
+                    }
+                    throw std::runtime_error{response.message};
                 }
                 return response;
             }
@@ -101,12 +82,10 @@ namespace network::topology::tree
                 //  Something gone wrong, so now we follow next plan:
                 //      1. kill created task
                 //      2. remove it's entry
-                //      3. restore used port
-                //      4. throw an code
+                //      3. throw an error
                 //
                 root_nodes_.front().task.kill();
                 root_nodes_.pop_front();
-                port_pool_.insert(port);
                 throw;
             }
         }
@@ -134,16 +113,7 @@ namespace network::topology::tree
         /// Builds request string for the node with given id
         auto static build_target_request(std::int64_t const target, std::string_view const request) -> std::string
         {
-            return std::string{ request } + " " + std::to_string(target);
-        }
-
-        /// Creates new node remotely
-        [[deprecated]]
-        auto create_remote_node(std::int64_t const id, std::int64_t const parent) -> response
-        {
-            auto const message = "create " + std::to_string(id);
-            auto const request = build_request(parent, message);
-            return ask_every_until_response(parent, request);
+            return std::string{request} + " " + std::to_string(target);
         }
 
         /// Removes node from current network
@@ -159,7 +129,8 @@ namespace network::topology::tree
                     //
                     // Send kill command
                     //
-                    ask_every_until_response(id, "kill");
+                    auto const kill_request = build_request(id, "kill");
+                    ask_every_until_response(id, kill_request);
 
                     //
                     // Erase node entry:
@@ -169,7 +140,7 @@ namespace network::topology::tree
                     node->task.kill();
                     root_nodes_.erase(node);
 
-                    return {.code = response::error::ok};
+                    return {.error = error::ok};
                 }
             }
 
@@ -178,66 +149,89 @@ namespace network::topology::tree
             return ask_every_until_response(any_node, primary);
         }
 
-        /// Sends ping command
-        [[deprecated]]
-        auto ping(std::int64_t const id) -> response
-        {
-            auto const request = build_request(id, "ping");
-            return ask_every_until_response(id, request);
-        }
-
         /// Sends message once to every root node until valuable response
         /**
          * @param message: string that will be sent
+         * @param target_id: target node id
          * @return: first valuable response
         */
-        auto ask_every_until_response(std::int64_t const id, std::string_view const message) -> response
+        auto ask_every_until_response(std::int64_t const target_id, std::string_view const message) -> response
         {
-            /// Sending routine
-            auto send = [this, id](node const& node, std::string_view const string) -> response
+            auto recv_response = [target_id](zmq::socket_t& socket, std::int64_t const node_id) -> response
             {
-                //
-                // Open socket
-                //
-                auto socket = zmq::socket_t{context_, ZMQ_REQ};
-                socket.setsockopt(ZMQ_RCVTIMEO, 1000);
-                socket.connect(node.address);
-
-                //
-                // Send prepared message
-                //
-                auto request = zmq::message_t{string.size()};
-                std::memcpy(request.data(), string.data(), string.size());
-                socket.send(request, zmq::send_flags::none);
-
-                //
-                // Receive response
-                //
-                auto       response    = zmq::message_t{256};
-                auto const recv_result = socket.recv(response, zmq::recv_flags::none);
-                if (!recv_result.has_value())
+                auto       response = zmq::message_t{256};
+                auto const result   = socket.recv(response, zmq::recv_flags::none);
+                if (!result.has_value())
                 {
                     return
                     {
-                        .code = (id == node.id) ? response::error::unavailable : response::error::invalid_path,
+                        .error = target_id == node_id ? error::unavailable : error::invalid_path ,
                     };
                 }
-                response.rebuild(*recv_result);
+                response.rebuild(*result);
 
-                response.data();
-
-                //
-                // Deserialize response
-                //
                 auto deserialized_response = network::response{};
                 deserialized_response.deserialize_from(response);
 
                 return deserialized_response;
             };
 
+            /// Low-level sending routine
+            auto static send_request = [&](zmq::socket_t& socket, request const& request, std::int64_t const node_id) -> response
+            {
+                auto serialized_request = zmq::message_t{request.size()};
+                request.serialize_to(serialized_request);
+                socket.send(serialized_request, zmq::send_flags::none);
+
+                return recv_response(socket, node_id);
+            };
+
+            /// Sending routine
+            auto send = [this](node const& node, std::string_view const string) -> response
+            {
+                //
+                // Open envelope socket
+                //
+                auto socket = zmq::socket_t{context_, ZMQ_REQ};
+                socket.setsockopt(ZMQ_RCVTIMEO, 1000);
+                socket.connect(node.address);
+
+                //
+                // Send envelope
+                //
+                if (auto response = send_request(socket, {.type = request::type::envelope}, node.id);
+                    response.error != error::ok)
+                {
+                    return response;
+                }
+
+                //
+                // Open message socket
+                //
+                socket = zmq::socket_t{context_, ZMQ_REQ};
+                socket.setsockopt(ZMQ_RCVTIMEO, 30000);
+                socket.connect(node.address);
+
+                //
+                // Send message
+                //
+                auto response = send_request(
+                    socket, 
+                    {
+                        .type = request::type::message,
+                        .message = std::string{string}
+                    }, 
+                    node.id);
+
+                //
+                // Return response from last connection
+                //
+                return response;
+            };
+
             auto non_valuable_response = response
             {
-                .code = response::error::unknown
+                .error = error::unknown
             };
 
             //
@@ -246,16 +240,16 @@ namespace network::topology::tree
             for (auto const& node : root_nodes_)
             {
                 auto response = send(node, message);
-                if (response.code == response::error::invalid_path)
+                if (response.error == error::invalid_path)
                 {
                     non_valuable_response = network::response
                     {
-                        .code = response::error::invalid_path,
+                        .error = error::invalid_path,
                     };
 
                     continue;
                 }
-                if (response.code != response::error::unknown)
+                if (response.error != error::unknown)
                 {
                     return response;
                 }
@@ -267,20 +261,18 @@ namespace network::topology::tree
             return non_valuable_response;
         }
 
-        /// Throws runtime_error with prefix "Internal code: " 
+        [[nodiscard]]
+        auto size() const noexcept -> std::size_t
+        {
+            return root_nodes_.size();
+        }
+
+    private:
+        /// Throws runtime_error with prefix "Internal error: " 
         [[noreturn]]
         static auto throw_internal(std::string_view const message) noexcept(false) -> void
         {
-            throw std::runtime_error{"Internal code: " + std::string{message}};
-        }
-
-        /// Checks if there are available ports to pop
-        auto port_pool_ability_check() const -> void
-        {
-            if (port_pool_.empty())
-            {
-                throw_internal("port pool is empty");
-            }
+            throw std::runtime_error{"Internal error: " + std::string{message}};
         }
     };
 }

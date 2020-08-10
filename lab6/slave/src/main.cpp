@@ -10,8 +10,13 @@
 
 #include <Windows.h>
 
+#undef interface
+
 #include <utility/commandline.hpp>
 #include <network/response.hpp>
+#include <network/topology.hpp>
+
+#include "interface.hpp"
 
 auto main(int const argc, char const* argv[]) -> int try
 {
@@ -24,10 +29,9 @@ auto main(int const argc, char const* argv[]) -> int try
 
     std::cout
         << "[#] New node created with the following parameters:" << std::endl
-        << "    path    : " << argv[0] << std::endl
-        << "    address : " << argv[1] << std::endl
-        << "    id      : " << argv[2] << std::endl;
-
+        << "    path     : " << argv[0] << std::endl
+        << "    address  : " << argv[1] << std::endl
+        << "    id       : " << argv[2] << std::endl;
 
     //
     //  As we start program via CreateProcess it's doesn't receive argv[0] as path to program which started.
@@ -39,44 +43,105 @@ auto main(int const argc, char const* argv[]) -> int try
     //
     //  Prepare our context and socket
     //
-    auto context = zmq::context_t{1};
-    auto socket  = zmq::socket_t{context, ZMQ_REP};
+    auto context   = zmq::context_t{1};
+    auto engine    = network::topology::tree::engine{context};
+    auto interface = executable::interface{engine, id};
+    auto socket    = zmq::socket_t{context, ZMQ_REP};
     socket.bind(address);
+    auto send_response = [&socket](network::response const& response) -> void
+    {
+        auto serialized_response = zmq::message_t{response.size()};
+        response.serialize_to(serialized_response);
+        socket.send(serialized_response, zmq::send_flags::dontwait);
 
-    while (true)
+        std::cout << "[v] Response : [" << response.code_to_string() << "] " << response.message << std::endl;
+    };
+
+    while (not interface.kill_requested())
     {
         //
         // Receive request
         //
-        auto request  = zmq::message_t{256};
-        auto recv_res = socket.recv(request, zmq::recv_flags::none);
-        request.rebuild(*recv_res);
-
-        std::cout << std::endl;
-        std::cout << "[^] Request : " << std::string_view{request.data<char>(), request.size()} << std::endl;
+        auto       serialized_request = zmq::message_t{256};
+        auto const result             = socket.recv(serialized_request, zmq::recv_flags::none);
+        serialized_request.rebuild(*result);
 
         //
-        // Build response
+        // Process request
         //
-        auto const process_id = GetCurrentProcessId();
-        auto const response   = network::response{
-            .code = network::response::error::ok,
-            .message = std::to_string(process_id),
-        };
+        try
+        {
+            auto request = network::request{};
+            request.deserialize_from(serialized_request);
 
-        //
-        // Send response
-        //
-        auto serialized_response = zmq::message_t{response.size()};
-        response.serialize_to(serialized_response);
-        socket.send(serialized_response, zmq::send_flags::none);
+            std::cout << std::endl;
+            std::cout << "[^] Request  : [" << request.code_to_string() << "] " << request.message << std::endl;
 
-        std::cout << "[v] Reply   : " << response.message << std::endl;
+            if (request.type == network::request::type::envelope)
+            {
+                //
+                // Send 'ok' back immediately on envelope request
+                //
+                send_response({.error = network::error::ok});
+                continue;
+            }
+
+            auto request_stream = std::stringstream{request.message};
+            auto target_id      = std::int64_t{};
+            if (not (request_stream >> target_id))
+            {
+                throw std::invalid_argument{"invalid target id"};
+            }
+
+            auto response = network::response{};
+
+            if (target_id == id || target_id == network::topology::any_node)
+            {
+                auto command = std::string{};
+
+                for (auto line = std::string{}; std::getline(request_stream, line);)
+                {
+                    command += line + "\n";
+                }
+
+                response = interface.execute(command);
+            }
+            else
+            {
+                response = engine.ask_every_until_response(target_id, request.message);
+            }
+
+            //
+            // Send response
+            //
+            send_response(response);
+        }
+        catch (std::runtime_error const& e)
+        {
+            send_response({
+                .error = network::error::internal_error,
+                .message = e.what(),
+            });
+        }
+        catch (std::invalid_argument const& e)
+        {
+            send_response({
+                .error = network::error::bad_request,
+                .message = e.what(),
+            });
+        }
+        catch (std::exception const& e)
+        {
+            send_response({
+                .error = network::error::internal_error,
+                .message = e.what(),
+            });
+        }
     }
 }
 catch (std::exception& e)
 {
-    std::cerr << "Error: " << e.what() << std::endl;
+    std::cerr << "PANIC: " << e.what() << std::endl;
 #undef max
     zmq_sleep(std::numeric_limits<int>::max());
 }
