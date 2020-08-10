@@ -124,8 +124,8 @@ auto executable::interface::declare() noexcept(false) -> void
                 if (not stopped)
                 {
                     last_point = std::chrono::high_resolution_clock::now();
+                    stopped = true;
                 }
-                stopped = true;
 
                 return
                 {
@@ -144,11 +144,11 @@ auto executable::interface::declare() noexcept(false) -> void
                     last_point = std::chrono::high_resolution_clock::now();
                 }
 
-                auto const time = (last_point - timestamp).count();
+                auto const time = (last_point - timestamp).count() / 1000000;
                 return
                 {
                     .error = network::error::ok,
-                    .message = build_response_message(std::to_string(time / 1000000))
+                    .message = build_response_message(std::to_string(time))
                 };
             }
 
